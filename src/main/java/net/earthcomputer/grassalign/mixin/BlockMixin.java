@@ -1,27 +1,147 @@
 package net.earthcomputer.grassalign.mixin;
 
+import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.BlockView;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(Block.class)
-public class BlockMixin {
-    @Inject(method = "getOffsetPos", at = @At("HEAD"), cancellable = true)
-    private void getGrassOffsetPos(BlockState state, BlockView view, BlockPos pos, CallbackInfoReturnable<Vec3d> ci) {
-        if ((Object) this == Blocks.GRASS) {
-            long var17 = (long)(pos.getX() * 3129871) ^ (long)pos.getZ() * 116129781L ^ (long)pos.getY();
-            var17 = var17 * var17 * 42317861L + var17 * 11L;
-            double dx = ((double)((float)(var17 >> 16 & 15L) / 15.0F) - 0.5D) * 0.5D;
-            double dy = ((double)((float)(var17 >> 20 & 15L) / 15.0F) - 1.0D) * 0.2D;
-            double dz = ((double)((float)(var17 >> 24 & 15L) / 15.0F) - 0.5D) * 0.5D;
-            ci.setReturnValue(new Vec3d(dx, dy, dz));
+/**
+ * In modern versions, model offsets are computed in {@code AbstractBlock.AbstractBlockState#getModelOffset}.
+ *
+ * This mixin overrides offsets for the foliage blocks that had special random offsets in 1.7.3,
+ * to match the 1.7.3 formulas exactly:
+ *
+ * <ul>
+ *   <li>Short grass / fern / dead bush: XYZ jitter (includes vertical component)</li>
+ *   <li>Small flowers: XZ jitter</li>
+ *   <li>Tall plants (double-height plants): XZ jitter with an XZ-only seed (keeps both halves aligned)</li>
+ * </ul>
+ */
+@Mixin(AbstractBlock.AbstractBlockState.class)
+public abstract class BlockMixin {
+    @Shadow
+    public abstract boolean isOf(Block block);
+
+    @Unique
+    private boolean is173TallGrassLike() {
+        // In 1.7.3, this was all one block (Blocks.TALLGRASS) with variants:
+        // deadbush, tallgrass, fern.
+        return this.isOf(Blocks.GRASS) || this.isOf(Blocks.FERN) || this.isOf(Blocks.DEAD_BUSH);
+    }
+
+    @Unique
+    private boolean is173SmallFlower() {
+        // In 1.7.3, all small flowers were either RED_FLOWER or YELLOW_FLOWER.
+        return this.isOf(Blocks.DANDELION)
+                || this.isOf(Blocks.POPPY)
+                || this.isOf(Blocks.BLUE_ORCHID)
+                || this.isOf(Blocks.ALLIUM)
+                || this.isOf(Blocks.AZURE_BLUET)
+                || this.isOf(Blocks.RED_TULIP)
+                || this.isOf(Blocks.ORANGE_TULIP)
+                || this.isOf(Blocks.WHITE_TULIP)
+                || this.isOf(Blocks.PINK_TULIP)
+                || this.isOf(Blocks.OXEYE_DAISY)
+                || this.isOf(Blocks.CORNFLOWER)
+                || this.isOf(Blocks.LILY_OF_THE_VALLEY)
+                || this.isOf(Blocks.WITHER_ROSE);
+    }
+
+    @Unique
+    private boolean is173DoublePlant() {
+        // 1.7.3's DOUBLE_PLANT offsets (tall flowers + tall grass + large fern).
+        return this.isOf(Blocks.SUNFLOWER)
+                || this.isOf(Blocks.LILAC)
+                || this.isOf(Blocks.ROSE_BUSH)
+                || this.isOf(Blocks.PEONY)
+                || this.isOf(Blocks.TALL_GRASS)
+                || this.isOf(Blocks.LARGE_FERN);
+    }
+
+    @Unique
+    private static long scrambleSeed(long seed) {
+        return seed * seed * 42317861L + seed * 11L;
+    }
+
+    @Unique
+    private static long seedXYZ(BlockPos pos) {
+        int x = pos.getX();
+        int y = pos.getY();
+        int z = pos.getZ();
+        // 1.7.3 (tesselateCross) used X/Y/Z in the seed.
+        long seed = (long) (x * 3129871) ^ (long) z * 116129781L ^ (long) y;
+        return scrambleSeed(seed);
+    }
+
+    @Unique
+    private static long seedXZ(BlockPos pos) {
+        int x = pos.getX();
+        int z = pos.getZ();
+        // 1.7.3 (tesselateDoublePlant) used X/Z only so upper and lower halves match.
+        long seed = (long) (x * 3129871) ^ (long) z * 116129781L;
+        return scrambleSeed(seed);
+    }
+
+    @Unique
+    private static double jitter(long seed, int shift, double subtract, double multiply) {
+        // Keep the float division (then widen to double) to match 1.7.3 exactly.
+        return (((double) ((float) ((seed >> shift) & 15L) / 15.0F)) - subtract) * multiply;
+    }
+
+    @Unique
+    private static Vec3d offset173TallGrassLike(BlockPos pos) {
+        // 1.7.3 tesselateCross: Blocks.TALLGRASS
+        long seed = seedXYZ(pos);
+        return new Vec3d(
+                jitter(seed, 16, 0.5D, 0.5D),
+                jitter(seed, 20, 1.0D, 0.2D),
+                jitter(seed, 24, 0.5D, 0.5D)
+        );
+    }
+
+    @Unique
+    private static Vec3d offset173SmallFlower(BlockPos pos) {
+        // 1.7.3 tesselateCross: Blocks.RED_FLOWER / Blocks.YELLOW_FLOWER
+        long seed = seedXYZ(pos);
+        return new Vec3d(
+                jitter(seed, 16, 0.5D, 0.3D),
+                0.0D,
+                jitter(seed, 24, 0.5D, 0.3D)
+        );
+    }
+
+    @Unique
+    private static Vec3d offset173DoublePlant(BlockPos pos) {
+        // 1.7.3 tesselateDoublePlant: seed is XZ-only so the upper and lower halves match.
+        long seed = seedXZ(pos);
+        return new Vec3d(
+                jitter(seed, 16, 0.5D, 0.3D),
+                0.0D,
+                jitter(seed, 24, 0.5D, 0.3D)
+        );
+    }
+
+    // Use the full descriptor so the mixin remapper/refmap has an unambiguous target.
+    @Inject(
+            method = "getModelOffset(Lnet/minecraft/world/BlockView;Lnet/minecraft/util/math/BlockPos;)Lnet/minecraft/util/math/Vec3d;",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private void grassalign$getModelOffset(BlockView world, BlockPos pos, CallbackInfoReturnable<Vec3d> cir) {
+        if (this.is173TallGrassLike()) {
+            cir.setReturnValue(offset173TallGrassLike(pos));
+        } else if (this.is173SmallFlower()) {
+            cir.setReturnValue(offset173SmallFlower(pos));
+        } else if (this.is173DoublePlant()) {
+            cir.setReturnValue(offset173DoublePlant(pos));
         }
     }
 }
