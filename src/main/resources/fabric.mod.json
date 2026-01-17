@@ -3,7 +3,7 @@
   "id": "grassalign",
   "version": "${version}",
   "name": "Grassalign",
-  "description": "Aligns tall grass blocks to the same alignment as beta",
+  "description": "Aligns foliage block model offsets (grass/ferns/flowers/double plants) to match 1.7.3",
   "authors": [
     "Earthcomputer"
   ],
@@ -18,7 +18,7 @@
     "grassalign.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.8.7+build.201",
-    "minecraft": "1.15.2"
+    "fabricloader": ">=0.11.0",
+    "minecraft": "1.16.5"
   }
 }
