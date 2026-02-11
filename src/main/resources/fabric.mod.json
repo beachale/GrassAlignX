@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "grassalign",
+  "id": "grassaligntb3",
   "version": "${version}",
-  "name": "Grassalign",
-  "description": "Aligns foliage block model offsets (grass/ferns/flowers/double plants) to match 1.7.3",
+  "name": "GrassAlignTB3",
+  "description": "Aligns foliage block model offsets (grass/ferns/flowers/double plants) to match b1.6-tb3 jitter offsets",
   "authors": [
     "Earthcomputer"
   ],
@@ -12,10 +12,10 @@
     "sources": "https://github.com/Earthcomputer/GrassAlign"
   },
   "license": "MIT",
-  "icon": "assets/grassalign/icon.png",
+  "icon": "assets/grassaligntb3/icon.png",
   "environment": "client",
   "mixins": [
-    "grassalign.mixins.json"
+    "grassaligntb3.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.14.21",

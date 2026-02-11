@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "net.earthcomputer.grassalign.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "BlockMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

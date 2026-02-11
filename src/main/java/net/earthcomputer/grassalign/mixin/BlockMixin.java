@@ -16,8 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * In modern versions, model offsets are computed in {@code AbstractBlock.AbstractBlockState#getModelOffset}.
  *
- * This mixin overrides offsets for the foliage blocks that had special random offsets in 1.7.3,
- * to match the 1.7.3 formulas exactly:
+ * This mixin overrides offsets for foliage blocks that had special random offsets in old versions,
+ * using the b1.6-tb3 jitter seed formula (instead of the usual pre-1.8 XOR seed).
  *
  * <ul>
  *   <li>Short grass / fern / dead bush: XYZ jitter (includes vertical component)</li>
@@ -76,8 +76,9 @@ public abstract class BlockMixin {
         int x = pos.getX();
         int y = pos.getY();
         int z = pos.getZ();
-        // 1.7.3 (tesselateCross) used X/Y/Z in the seed.
-        long seed = (long) (x * 3129871) ^ (long) z * 116129781L ^ (long) y;
+        // b1.6-tb3 (RenderBlocks#renderBlockReed) combines X/Z/Y using 32-bit int arithmetic
+        // (including overflow), then widens to long.
+        long seed = (long) (x * 3129871 + z * 6129781 + y);
         return scrambleSeed(seed);
     }
 
@@ -85,8 +86,9 @@ public abstract class BlockMixin {
     private static long seedXZ(BlockPos pos) {
         int x = pos.getX();
         int z = pos.getZ();
-        // 1.7.3 (tesselateDoublePlant) used X/Z only so upper and lower halves match.
-        long seed = (long) (x * 3129871) ^ (long) z * 116129781L;
+        // b1.6-tb3: X/Z-only variant (keeps both halves aligned), using the same int-overflow
+        // behavior as the XYZ seed.
+        long seed = (long) (x * 3129871 + z * 6129781);
         return scrambleSeed(seed);
     }
 
@@ -135,7 +137,7 @@ public abstract class BlockMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void grassalign$getModelOffset(BlockView world, BlockPos pos, CallbackInfoReturnable<Vec3d> cir) {
+    private void grassaligntb3$getModelOffset(BlockView world, BlockPos pos, CallbackInfoReturnable<Vec3d> cir) {
         if (this.is173TallGrassLike()) {
             cir.setReturnValue(offset173TallGrassLike(pos));
         } else if (this.is173SmallFlower()) {
